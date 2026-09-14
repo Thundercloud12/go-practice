@@ -37,8 +37,8 @@ func (r *RateLimiter)Allow(clientId string) bool  {
 	if !ok{
 		
 		mp = &clientLog{
-			sync.Mutex{},
-			list.New(),
+			mu:sync.Mutex{},
+			timestamps:list.New(),
 		}
 		r.clients[clientId]=mp
 		
@@ -50,12 +50,16 @@ func (r *RateLimiter)Allow(clientId string) bool  {
 	tz_map:=mp.timestamps
 	
 	defer mp.mu.Unlock()
-	for e:=tz_map.Front();e!=nil;{
-		nexti:=e.Next()
-		if time.Now().Sub(e.Value.(time.Time)) >r.window {
+	for e := tz_map.Back(); e != nil; {
+		prev := e.Prev()
+
+		if time.Since(e.Value.(time.Time)) > r.window {
 			tz_map.Remove(e)
+		} else {
+			break
 		}
-		e=nexti
+
+		e = prev
 	}
 	
 	if mp.timestamps.Len() < r.maxRequests {
